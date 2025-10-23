@@ -31,16 +31,17 @@ std::string build_prompt(const std::vector<Message>& messages, bool add_generati
 
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <model_path>" << std::endl;
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <model_path>" << " <Prompt_Path> " <<std::endl;
         return 1;
     }
 
     const char* model_path = argv[1];
+    std::string prompt_file_path = std::string(argv[2]);
     int n_threads = 4; // Example thread count, can be adjusted
     llama model(model_path, n_threads); // Initialize the model with 4-bit quantization
 
-    int input_num = 256;
+    // int input_num = 256;
     int generate_num = 50;
 
     // int32_t* inputs = (int32_t*)malloc(input_num * sizeof(int32_t));
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
     auto blob = LoadBytesFromFile(tokenizer_path);
     auto tok = tokenizers::Tokenizer::FromBlobJSON(blob);
     
-    std::ifstream file("/home/elf/Sparse_T_MAC/tokenizer_test.txt");
+    std::ifstream file(prompt_file_path);
 
     std::string content((std::istreambuf_iterator<char>(file)),std::istreambuf_iterator<char>());
 
