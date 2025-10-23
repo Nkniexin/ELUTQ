@@ -44,6 +44,7 @@ A comparison of perplexity (↓) between weight-only quantization methods on the
 
 ## 📦 Installation
 ```
+git clone --recurse-submodules https://github.com/Nkniexin/ELUTQ.git
 conda create -n ELUTQ python=3.11
 conda activate ELUTQ
 pip install -r requirements.txt
