@@ -1,0 +1,13 @@
+#pragma once
+#include <arm_device.h>
+#include <arm_argmax.h>
+#include <arm_activation.h>
+#include <arm_attention.h>
+#include <arm_cache.h>
+#include <arm_embedding.h>
+#include <arm_gemm.h>
+#include <arm_gemv.h>
+#include <arm_rmsnorm.h>
+#include <arm_rotary.h>
+#include <arm_nnstructures.h>
+#include <parameters.h>
