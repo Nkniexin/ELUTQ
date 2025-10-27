@@ -469,4 +469,6 @@ if __name__ == '__main__':
 
     if args.save:
         model.save_pretrained(args.save)
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
+        tokenizer.save_pretrained(args.save)
 

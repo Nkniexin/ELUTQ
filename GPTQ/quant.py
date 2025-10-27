@@ -16,7 +16,7 @@ def generate_bit_combinations(bits,dtype):
     )
     
 @torch.enable_grad()
-def find_optimal_params_gradient(tensor, bits=3, max_iters=100, tol=1e-6, lr=0.001, min_iters = 40): 
+def find_optimal_params_gradient(tensor, bits=3, max_iters=100, tol=1e-7, lr=0.001, min_iters = 40): 
     zero_points_dynamic_percent = 1.0 / (2**bits - 1)
     device = tensor.device
     dtype = torch.float32

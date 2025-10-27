@@ -64,9 +64,7 @@ class HLQ:
         self, average_bit = None,groupsize=-1,layerid = None,layer_name = None,
         output_dir = None, percdamp=.01,actorder = False,iters = 100,lr = 0.001, use_alternating_optimization = False
     ):
-
         assert average_bit - int(average_bit) < 1e-9,"GPTQ only support int wbit"
-
         get_zp = False
         if output_dir is not None :
             output_dir = f'{output_dir}/{layerid}/{layer_name}'
