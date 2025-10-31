@@ -121,7 +121,8 @@ def qwen_sequential(model, dataloader, dev,logger):
                 gptq[name].fasterquant(
                     average_bit = args.wbits, groupsize=args.groupsize, 
                     layerid = i,layer_name=name,output_dir=args.export,actorder = args.actorder,
-                    percdamp = args.percdamp,iters = args.iters,lr = args.lr
+                    percdamp = args.percdamp,iters = args.alternate_iters if args.alternating_optimization else args.gradient_iters,
+                    lr = args.lr,use_alternating_optimization = args.alternating_optimization
                 )
                 gptq[name].free()
 
@@ -172,7 +173,8 @@ def qwen_sequential(model, dataloader, dev,logger):
             gptq[name].fasterquant(
                 average_bit = args.wbits,groupsize=args.groupsize,layerid = 'lm_head',layer_name='lm_head',
                 output_dir=args.export,actorder = args.actorder,
-                percdamp = args.percdamp,iters = args.iters,lr = args.lr,logger = logger
+                percdamp = args.percdamp,iters = args.alternate_iters if args.alternating_optimization else args.gradient_iters,
+                lr = args.lr,use_alternating_optimization = args.alternating_optimization
             )
             gptq[name].free()
     
@@ -356,6 +358,10 @@ if __name__ == '__main__':
     parser.add_argument(
         '--log_dir', type=str, default='./logs',
     )
+    
+    parser.add_argument(
+        '--alternating-optimization', action='store_true', help='Whether to use alternating optimization.'
+    )
 
     parser.add_argument(
         '--skip_lmhead', action='store_true',
@@ -409,7 +415,11 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--iters', type=int,default=100,
+        '--alternate_iters', type=int,default=20,
+    )
+
+    parser.add_argument(
+        '--gradient_iters', type=int,default=100,
     )
 
     parser.add_argument(
@@ -465,4 +475,6 @@ if __name__ == '__main__':
 
     if args.save:
         model.save_pretrained(args.save)
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
+        tokenizer.save_pretrained(args.save)
 

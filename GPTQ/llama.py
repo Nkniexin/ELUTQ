@@ -121,7 +121,8 @@ def llama_sequential(model, dataloader, dev,logger):
                 gptq[name].fasterquant(
                     average_bit = args.wbits, groupsize=args.groupsize, 
                     layerid = i,layer_name=name,output_dir=args.export,actorder = args.actorder,
-                    percdamp = args.percdamp,iters = args.iters,lr = args.lr,use_alternating_optimization = args.alternating_optimization
+                    percdamp = args.percdamp, iters = args.alternate_iters if args.alternating_optimization else args.gradient_iters,
+                    lr = args.lr,use_alternating_optimization = args.alternating_optimization
                 )
                 gptq[name].free()
 
@@ -172,7 +173,8 @@ def llama_sequential(model, dataloader, dev,logger):
             gptq[name].fasterquant(
                 average_bit = args.wbits,groupsize=args.groupsize,layerid = 'lm_head',layer_name='lm_head',
                 output_dir=args.export,actorder = args.actorder,
-                percdamp = args.percdamp,iters = args.iters,lr = args.lr,use_alternating_optimization = args.alternating_optimization
+                percdamp = args.percdamp,iters = args.alternate_iters if args.alternating_optimization else args.gradient_iters,
+                lr = args.lr,use_alternating_optimization = args.alternating_optimization
             )
             gptq[name].free()
     
@@ -413,7 +415,11 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--iters', type=int,default=100,
+        '--alternate_iters', type=int,default=20,
+    )
+
+    parser.add_argument(
+        '--gradient_iters', type=int,default=100,
     )
 
     parser.add_argument(
@@ -456,8 +462,8 @@ if __name__ == '__main__':
 
 
     # datasets = ['wikitext2', 'ptb', 'c4'] 
-    datasets = ['wikitext2','c4']
-    # datasets = ['c4']
+    # datasets = ['wikitext2','c4']
+    datasets = ['c4']
     if args.new_eval:
         datasets = ['wikitext2', 'ptb-new', 'c4-new']
     for dataset in datasets:

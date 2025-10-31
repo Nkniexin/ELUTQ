@@ -115,7 +115,7 @@ def optimize_s_batch_with_constant(tensor, best_bits):
     s_opt = torch.bmm(BtB_inv, BtY).squeeze(2)           # [n_blocks, bits+1]
     return s_opt
 
-def find_optimal_params_alternating(tensor, bits=3, max_iters=10, device=None):
+def find_optimal_params_alternating(tensor, bits=3, max_iters=20, device=None):
     device = device if device is not None else tensor.device
     dtype = torch.float32
     tensor = tensor.to(device).to(dtype)
@@ -183,7 +183,7 @@ def dequantize_with_scales(quantized, scales, zero_points):
     return dequantized
 
 def pseudo_quantize_tensor(        
-    w, n_bit=8, zero_point=True, q_group_size=-1, inplace=False, get_scale_zp=False,iters = 100,lr = 0.001,use_alternating_optimization=False
+    w, n_bit=8, zero_point=True, q_group_size=-1, inplace=False, get_scale_zp=False,iters = 20,lr = 0.001,use_alternating_optimization=False
 ):  
     
     org_w_shape = w.shape
@@ -193,7 +193,7 @@ def pseudo_quantize_tensor(
     assert w.dim() == 2
     
     if use_alternating_optimization :
-        scale_list, zero_point = find_optimal_params_alternating(w.clone().detach(),bits = int(n_bit))
+        scale_list, zero_point = find_optimal_params_alternating(w.clone().detach(),bits = int(n_bit),max_iters = iters)
     else :
         scale_list, zero_point = find_optimal_params_gradient(w.clone().detach(),bits = int(n_bit),max_iters = iters, lr =lr)
 
