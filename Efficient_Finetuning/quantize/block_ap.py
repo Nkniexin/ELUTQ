@@ -46,7 +46,6 @@ def block_ap(
     use_cache = model.config.use_cache
     model.config.use_cache = False
     
-    # step 1: move embedding layer and first layer to target device, only suppress llama models now
     layers = model.model.layers
     model.model.embed_tokens = model.model.embed_tokens.to(dev)
     model.model.norm = model.model.norm.to(dev)
@@ -56,9 +55,8 @@ def block_ap(
     layers[0] = layers[0].to(dev)
     dtype = torch.float16
 
-    # step 2: init dataset
     flag = time.time()
-    if args.off_load_to_disk: #TODO:optimize I/o,using batch load or mmap
+    if args.off_load_to_disk: 
         fp_train_cache_path = f'{args.cache_dir}/{flag}/block_training_fp_train'
         fp_val_cache_path = f'{args.cache_dir}/{flag}/block_training_fp_val'
         quant_train_cache_path = f'{args.cache_dir}/{flag}/block_training_quant_train'
@@ -72,11 +70,14 @@ def block_ap(
         quant_train_cache_path = None
         quant_val_cache_path = None
     fp_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
-                                model.config.hidden_size, args.batch_size, dtype, cache_path=fp_train_cache_path,off_load_to_disk=args.off_load_to_disk)
+                                model.config.hidden_size, args.batch_size, dtype, 
+                                cache_path=fp_train_cache_path,off_load_to_disk=args.off_load_to_disk,
+                                disk_data_block_size = args.off_load_batch_size)
     fp_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
-                                model.config.hidden_size, args.batch_size, dtype, cache_path=fp_val_cache_path,off_load_to_disk=args.off_load_to_disk)
+                                model.config.hidden_size, args.batch_size, dtype, 
+                                cache_path=fp_val_cache_path,off_load_to_disk=args.off_load_to_disk,
+                                 disk_data_block_size = args.off_load_batch_size)
     
-    # step 3: catch the input of thefirst layer 
     class Catcher(nn.Module):
         def __init__(self, module, dataset):
             super().__init__()
@@ -106,7 +107,6 @@ def block_ap(
             except AttributeError:
                 return getattr(self.module, name)
     
-    # step 3.1: catch the input of training set
     layers[0] = Catcher(layers[0],fp_train_inps)
     iters = len(trainloader)//args.batch_size
     with torch.no_grad():
@@ -118,7 +118,6 @@ def block_ap(
                 pass
     layers[0] = layers[0].module
 
-    # step 3.2: catch the input of validation set
     layers[0] = Catcher(layers[0],fp_val_inps)
     iters = len(valloader)//args.batch_size
     with torch.no_grad():
@@ -140,8 +139,7 @@ def block_ap(
             " Seems that model's attention works without a mask."
         )
         attention_mask_batch = None
-    
-    # step 4: move embedding layer and first layer to cpu
+
     layers[0] = layers[0].cpu()
     model.model.embed_tokens = model.model.embed_tokens.cpu()
     model.model.norm = model.model.norm.cpu()
@@ -150,31 +148,16 @@ def block_ap(
         model.model.rotary_emb = model.model.rotary_emb.cpu()
     torch.cuda.empty_cache()
 
-    # step 5: copy fp input as the quant input, they are same at the first layer
-    if args.off_load_to_disk:
-        # copy quant input from fp input, they are same in first layer
-
-        quant_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_train_cache_path,off_load_to_disk=args.off_load_to_disk)
-        quant_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_val_cache_path,off_load_to_disk=args.off_load_to_disk)
-                                    
-        for index,data in enumerate(fp_train_inps):
-            quant_train_inps.update_data(index, data)
-        for index,data in enumerate(fp_val_inps):
-            quant_val_inps.update_data(index, data)
-        
-    else:
-        quant_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_train_cache_path,off_load_to_disk=args.off_load_to_disk)
-        quant_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_val_cache_path,off_load_to_disk=args.off_load_to_disk)
-        for index,data in enumerate(fp_train_inps):
-            quant_train_inps.update_data(index, data)
-        for index,data in enumerate(fp_val_inps):
-            quant_val_inps.update_data(index, data)
-
-    # step 6: start training    
+    quant_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
+                                model.config.hidden_size, args.batch_size, dtype, cache_path=quant_train_cache_path,off_load_to_disk=args.off_load_to_disk)
+    quant_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
+                                model.config.hidden_size, args.batch_size, dtype, cache_path=quant_val_cache_path,off_load_to_disk=args.off_load_to_disk)
+                                
+    for index,data in enumerate(fp_train_inps):
+        quant_train_inps.update_data(index, data)
+    for index,data in enumerate(fp_val_inps):
+        quant_val_inps.update_data(index, data)
+         
     loss_func = torch.nn.MSELoss()
     for block_index in range(len(layers)):
         logger.info(f"=== Start quantize blocks {block_index}===")
@@ -198,7 +181,7 @@ def block_ap(
         if args.epochs > 0:
             with torch.no_grad():
                 qlayer.float()      # fp32 is required for AMP training
-            # step 6.3: create optimizer and learning rate schedule
+
             param = []
             assert args.quant_lr > 0 
             param_group_index = 0
@@ -221,7 +204,7 @@ def block_ap(
             best_val_loss = 1e6
             early_stop_flag = 0
             for epoch in range(args.epochs):
-                # step: 6.4 training
+
                 loss_list = []
                 norm_list = []
                 start_time = time.time()
@@ -248,7 +231,7 @@ def block_ap(
                         quant_scheduler.step()
                         optimizer.param_groups[quant_index]['lr'] = quant_scheduler.get_lr()[0]
 
-                # step 6.5: calculate validation loss
+
                 val_loss_list = []
                 
                 for index, (quant_inps,fp_inps) in enumerate(zip(quant_val_inps, fp_val_inps)):  
@@ -275,10 +258,8 @@ def block_ap(
             optimizer.zero_grad()
             del optimizer
 
-        # step 6.6: directly replace the weight with fake quantization
         qlayer.half()
 
-        # step 6.7: update inputs of quantization model
         if args.epochs>0:
             for index,data in enumerate(fp_train_inps):
                 quant_train_inps.update_data(index, data)
@@ -287,7 +268,7 @@ def block_ap(
 
         layers[block_index] = qlayer.to("cpu")
 
-        # step 7: pack quantized weights into low-bits format, note that this process is slow on poor CPU or busy CPU
+       
         if args.real_quant:
             named_linears = get_named_linears(qlayer, int_linear_fake.QuantLinear)
             for name, module in named_linears.items():

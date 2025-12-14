@@ -6,7 +6,7 @@ import torch
 import time
 from datautils_block import get_loaders, test_ppl
 import torch.nn as nn
-from quantize.block_ap_offload_optimize_vram import block_ap_offload, offload_get_block, offload_get_norm, offload_get_lmhead,offload_get_embedtokens
+from quantize.block_ap_lazyload import block_ap_lazyload, offload_get_block, offload_get_norm, offload_get_lmhead,offload_get_embedtokens
 from tqdm import tqdm
 import utils
 from pathlib import Path
@@ -49,7 +49,7 @@ def evaluate(model, tokenizer, args, logger):
         results = lm_eval.simple_evaluate(
         model=model,
         tasks=task_list,
-        num_fewshot=0,
+        num_fewshot=args.num_fewshot,
         task_manager=task_manager,
         cache_requests=True,
         )
@@ -84,6 +84,7 @@ def main():
     parser.add_argument("--seed", type=int, default=2, help="Seed for sampling the calibration data.")
     parser.add_argument("--eval_ppl", action="store_true",help="evaluate perplexity on wikitext2 and c4")
     parser.add_argument("--eval_tasks", type=str,default="", help="exampe:piqa,arc_easy,arc_challenge,hellaswag,winogrande")
+    parser.add_argument("--num_fewshot", type=int,default=0 , help="num_fewshot for lm_eval ")
     parser.add_argument("--eval_batch_size", type=int, default=16)
     parser.add_argument("--wbits", type=int, default=4, help="weights quantization bits")
     parser.add_argument("--group_size", type=int, default=128, help="weights quantization group size")
@@ -169,7 +170,7 @@ def main():
                 )
                 torch.save(trainloader, cache_trainloader)    
                 torch.save(valloader, cache_valloader)    
-            block_ap_offload(
+            block_ap_lazyload(
                 model,
                 config,
                 args,

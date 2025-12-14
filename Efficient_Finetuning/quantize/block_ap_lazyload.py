@@ -124,7 +124,7 @@ def offload_get_norm(model_path_or_name,model_type:str='llama'):
     norm_layer.load_state_dict(norm_state)
     return norm_layer
 
-def block_ap_offload(
+def block_ap_lazyload(
     model,
     config,
     args,
@@ -140,7 +140,7 @@ def block_ap_offload(
     use_cache = model.config.use_cache
     model.config.use_cache = False
     
-    # step 1: move embedding layer and first layer to target device, only suppress llama models now
+
     layers = model.model.layers
     model.model.embed_tokens = model.model.embed_tokens.to(dev)
     model.model.norm = model.model.norm.to(dev)
@@ -150,7 +150,6 @@ def block_ap_offload(
     layers[0] = layers[0].to(dev)
     dtype = torch.float16
 
-    # step 2: init dataset
     flag = time.time()
     if args.off_load_to_disk: 
         fp_train_cache_path = f'{args.cache_dir}/{flag}/block_training_fp_train'
@@ -200,7 +199,6 @@ def block_ap_offload(
             except AttributeError:
                 return getattr(self.module, name)
     
-    # step 3.1: catch the input of training set
     layers[0] = Catcher(layers[0],fp_train_inps)
     iters = len(trainloader)//args.batch_size
     with torch.no_grad():
@@ -212,7 +210,6 @@ def block_ap_offload(
                 pass
     layers[0] = layers[0].module
 
-    # step 3.2: catch the input of validation set
     layers[0] = Catcher(layers[0],fp_val_inps)
     iters = len(valloader)//args.batch_size
     with torch.no_grad():
@@ -245,29 +242,19 @@ def block_ap_offload(
     torch.cuda.empty_cache()
 
     del layers[0]
-    # step 5: copy fp input as the quant input, they are same at the first layer
-    if args.off_load_to_disk:
-        # copy quant input from fp input, they are same in first layer
 
-        quant_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_train_cache_path,off_load_to_disk=args.off_load_to_disk,disk_data_block_size=args.off_load_batch_size)
-        quant_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_val_cache_path,off_load_to_disk=args.off_load_to_disk,disk_data_block_size=args.off_load_batch_size)
-                                    
-        for index,data in enumerate(fp_train_inps):
-            quant_train_inps.update_data(index, data)
-        for index,data in enumerate(fp_val_inps):
-            quant_val_inps.update_data(index, data)
-        
-    else:
-        quant_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_train_cache_path,off_load_to_disk=args.off_load_to_disk,disk_data_block_size=args.off_load_batch_size)
-        quant_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
-                                    model.config.hidden_size, args.batch_size, dtype, cache_path=quant_val_cache_path,off_load_to_disk=args.off_load_to_disk,disk_data_block_size=args.off_load_batch_size)
-        for index,data in enumerate(fp_train_inps):
-            quant_train_inps.update_data(index, data)
-        for index,data in enumerate(fp_val_inps):
-            quant_val_inps.update_data(index, data)
+    # copy quant input from fp input, they are same in first layer
+    quant_train_inps = BlockTrainDataset(args.train_size, args.training_seqlen, 
+                                model.config.hidden_size, args.batch_size, dtype, cache_path=quant_train_cache_path,off_load_to_disk=args.off_load_to_disk,disk_data_block_size=args.off_load_batch_size)
+    quant_val_inps = BlockTrainDataset(args.val_size, args.training_seqlen, 
+                                model.config.hidden_size, args.batch_size, dtype, cache_path=quant_val_cache_path,off_load_to_disk=args.off_load_to_disk,disk_data_block_size=args.off_load_batch_size)
+                                
+    for index,data in enumerate(fp_train_inps):
+        quant_train_inps.update_data(index, data)
+    for index,data in enumerate(fp_val_inps):
+        quant_val_inps.update_data(index, data)
+    
+    
     # step 6: start training    
     loss_func = torch.nn.MSELoss()
 
@@ -305,7 +292,7 @@ def block_ap_offload(
         if args.epochs > 0:
             with torch.no_grad():
                 qlayer.float()      # fp32 is required for AMP training
-            # step 6.3: create optimizer and learning rate schedule
+
             param = []
             assert args.quant_lr > 0 
             param_group_index = 0
@@ -328,7 +315,7 @@ def block_ap_offload(
             best_val_loss = 1e6
             early_stop_flag = 0
             for epoch in range(args.epochs):
-                # step: 6.4 training
+
                 loss_list = []
                 norm_list = []
                 start_time = time.time()
@@ -355,7 +342,7 @@ def block_ap_offload(
                         quant_scheduler.step()
                         optimizer.param_groups[quant_index]['lr'] = quant_scheduler.get_lr()[0]
 
-                # step 6.5: calculate validation loss
+
                 val_loss_list = []
                 
                 for index, (quant_inps,fp_inps) in enumerate(zip(quant_val_inps, fp_val_inps)):  
@@ -382,10 +369,10 @@ def block_ap_offload(
             optimizer.zero_grad()
             del optimizer
 
-        # step 6.6: directly replace the weight with fake quantization
+
         qlayer.half()
 
-        # step 6.7: update inputs of quantization model
+
         if args.epochs>0:
             for index,data in enumerate(fp_train_inps):
                 quant_train_inps.update_data(index, data)
