@@ -101,3 +101,4 @@ word2number==1.1
 xxhash==3.5.0
 yarl==1.20.1
 zstandard==0.23.0
+lm_eval==0.4.9
