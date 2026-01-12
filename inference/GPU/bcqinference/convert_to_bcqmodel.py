@@ -8,10 +8,6 @@ import shutil
 from safetensors.torch import load_file, save_file
 import torch
 
-model_path = 'path/to/bcq_model/Llama-3-8b-w3g128-1024'
-output_dir = 'path/to/new_model_safetensors'
-
-
 def convert_model(model_path:str = None, output_dir:str = None) :
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
