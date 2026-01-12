@@ -8,8 +8,8 @@ ELUTQ is an efficient quantization framework designed for deploying large langua
 - **Hierarchical Linear Quantization (HLQ)**  
   A novel quantization method that better captures the weight distribution compared to traditional uniform quantization.
 
-- **Seamless Integration**  
-  Compatible with existing quantization techniques, including **post-training quantization (PTQ)** and **Efficienet Finetuning**.
+- **Efficienet Finetuning Pipeline**  
+  Efficient Finetuning Pipeline for HLQ, save time and memory footprint.
 
 - **Inference Framework**  
   Provides end-to-end inference for fast and accurate on-device inference, including CPUs and GPUs
