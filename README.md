@@ -68,12 +68,12 @@ HLQ-Finetuning has two stage: **Block-Reconstruction** and **End-to-End Tuning**
 1. Blcok-Reconstruction
 ```bash
 cd Efficient_Finetuning
-bash examples/block_ap/llama3.1-8b/w2g128-c4.sh
+bash examples/block_ap/llama3.1-8b/w2g128.sh
 
 ```
 2. End-to-End Finetuning
 ```bash
-bash examples/e2e_qp/llama3.1-8b/w2g128-c4.sh
+bash examples/e2e_qp/llama3.1-8b/w2g128.sh
 ```
 
 ## Inference 
